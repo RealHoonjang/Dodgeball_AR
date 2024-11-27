@@ -43,7 +43,7 @@ const GAME_CONFIG = {
       INITIAL_SPEED: 0.005,  // 초기 속도
       SPEED_VARIANCE: 0.3,
       MIN_COUNT: 6,          // 최소 공의 개수
-      SPAWN_INTERVAL: 1000,  // 공 생성 주기 (1초)
+      SPAWN_INTERVAL: 1000,  // 공 생성 주기 (5초)
       SPAWN_COUNT: {         // 스테이지별 생성 개수
           INITIAL: 1,        // 초기 생성 개수
           MAX: 3            // 최대 생성 개수 (스테이지 10에서)
@@ -164,15 +164,17 @@ AFRAME.registerComponent('game-manager', {
   createAsteroid: function() {
       const asteroid = document.createElement('a-entity');
       asteroid.setAttribute('geometry', {
-          primitive: 'plane',
-          width: GAME_CONFIG.ASTEROID.WIDTH,
-          height: GAME_CONFIG.ASTEROID.HEIGHT
+          primitive: 'circle',
+          radius: GAME_CONFIG.ASTEROID.WIDTH / 2
       });
       asteroid.setAttribute('material', {
           src: '#asteroid-sprite',
           transparent: true,
-          opacity: GAME_CONFIG.ASTEROID.OPACITY
+          opacity: GAME_CONFIG.ASTEROID.OPACITY,
+          alphaTest: 0.5
       });
+      
+      asteroid.setAttribute('look-at-camera', '');
       
       const position = this.getRandomStartPosition();
       asteroid.setAttribute('position', position);
