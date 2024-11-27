@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AR 얼굴 추적 게임</title>
+    
+    <!-- TensorFlow.js 및 BlazeFace -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js"></script>
+    
+    <!-- A-Frame 및 AR.js -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- WebRTC 관련 스크립트 -->
+    <script>
+        // 기존 WebRTC 관련 스크립트는 그대로 유지
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'user',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                const video = document.querySelector('#arjs-video');
+                if (video) {
+                    video.srcObject = stream;
+                    // 비디오 로드 완료 대기
+                    await new Promise((resolve) => {
+                        video.onloadeddata = () => {
+                            console.log('비디오 초기화 성공');
+                            resolve();
+                        };
+                    });
+                }
+            } catch (error) {
+                console.error('카메라 초기화 실패:', error);
+            }
+        }
+
+        // BlazeFace 모델 및 추적 코드
+        let blazeFaceModel = null;
+
+        async function loadBlazeFaceModel() {
+            try {
+                blazeFaceModel = await blazeface.load();
+                console.log('BlazeFace 모델 로드 완료');
+            } catch (error) {
+                console.error('BlazeFace 모델 로드 실패:', error);
+            }
+        }
+
+        window.addEventListener('load', loadBlazeFaceModel);
+
+        AFRAME.registerComponent('face-tracking', {
+            init: function() {
+                this.videoElement = document.querySelector('#arjs-video');
+                this.isTracking = false;
+                this.lastUpdate = 0;
+                
+                // 비디오 초기화
+                initCamera().then(() => {
+                    console.log('카메라 초기화 완료');
+                    this.checkModelAndStartTracking();
+                });
+            },
+            
+            checkModelAndStartTracking: function() {
+                if (blazeFaceModel && this.videoElement && this.videoElement.readyState >= 4) {
+                    if (!this.isTracking) {
+                        console.log('얼굴 추적 시작');
+                        this.isTracking = true;
+                        this.startTracking();
+                    }
+                } else {
+                    console.log('모델 또는 비디오 준비 대기 중...');
+                    setTimeout(() => this.checkModelAndStartTracking(), 1000);
+                }
+            },
+            
+            startTracking: function() {
+                const detectFace = async () => {
+                    if (!this.isTracking) return;
+                    
+                    try {
+                        const predictions = await blazeFaceModel.estimateFaces(
+                            this.videoElement, false
+                        );
+                        
+                        if (predictions.length > 0) {
+                            const face = predictions[0];
+                            const videoWidth = this.videoElement.videoWidth;
+                            const videoHeight = this.videoElement.videoHeight;
+                            
+                            // 얼굴 중심점 계산
+                            const centerX = (face.topLeft[0] + face.bottomRight[0]) / 2;
+                            const centerY = (face.topLeft[1] + face.bottomRight[1]) / 2;
+                            
+                            // 정규화된 좌표 계산 (-1 ~ 1 범위)
+                            // X축은 그대로 -1을 곱해 반전 (좌우 미러링)
+                            let normalizedX = ((centerX / videoWidth) * 2 - 1) * -1;
+                            // Y축은 -1을 곱하지 않음 (위아래 반전 제거)
+                            let normalizedY = ((centerY / videoHeight) * 2 - 1) * -1;
+                            
+                            // 게임 내 좌표로 변환
+                            const gameX = Math.max(-3, Math.min(3, normalizedX * 3));
+                            const gameY = Math.max(-2, Math.min(2, normalizedY * 2));
+                            
+                            // 위치 업데이트
+                            this.el.setAttribute('position', {
+                                x: gameX,
+                                y: gameY,
+                                z: -3
+                            });
+                        }
+                    } catch (error) {
+                        console.error('얼굴 감지 오류:', error);
+                    }
+                    
+                    requestAnimationFrame(detectFace);
+                };
+                
+                detectFace();
+            }
+        });
+    </script>
+    
+    <style>
+        #start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .start-container {
+            text-align: center;
+            padding: 20px;
+            background: rgba(100, 255, 218, 0.1);
+            border-radius: 10px;
+            border: 2px solid #64ffda;
+        }
+
+        #startBtn {
+            padding: 15px 40px;
+            font-size: 20px;
+            background: transparent;
+            border: 2px solid #64ffda;
+            color: #64ffda;
+            cursor: default;
+            opacity: 0.5;
+            transition: all 0.3s ease;
+        }
+
+        #startBtn.active {
+            opacity: 1;
+            cursor: pointer;
+            background: #64ffda;
+            color: #000;
+        }
+
+        #startBtn.active:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.5);
+        }
+
+        #countdown {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 100px;
+            color: #64ffda;
+            font-family: 'Press Start 2P', cursive;
+            text-shadow: 4px 4px #000;
+            z-index: 9999;
+        }
+
+        /* 기존 스타일 유지 */
+        #game-ui {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 999;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        .a-enter-vr {
+            display: none;
+        }
+
+        #arjs-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+            transform: scaleX(-1);
+        }
+
+        #nickname {
+            width: 80%;
+            max-width: 300px;
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #64ffda;
+            background: transparent;
+            color: #64ffda;
+            font-family: 'Press Start 2P', cursive;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 시작 화면 -->
+    <div id="start-screen">
+        <div class="start-container">
+            <h1>DODGEBALL<br>AR</h1>
+            <div class="input-container">
+                <input type="text" 
+                       id="nickname" 
+                       placeholder="Enter Nickname" 
+                       maxlength="10"
+                       autocomplete="off">
+            </div>
+            <button id="startBtn" disabled>START</button>
+        </div>
+    </div>
+
+    <!-- 카운트다운 -->
+    <div id="countdown"></div>
+
+    <!-- 게임 화면 -->
+    <div id="game-ui">
+        <div id="score">점수: 0</div>
+        <div id="stage">스테이지: 1</div>
+        <div id="timer">시간: 60초</div>
+    </div>
+
+    <!-- 스테이지 메시지 -->
+    <div id="stage-message" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 10px; text-align: center; z-index: 1000;">
+    </div>
+
+    <video id="arjs-video" autoplay playsinline></video>
+
+    <a-scene embedded arjs='sourceType: webcam; debugUIEnabled: false;' game-manager>
+        <a-assets>
+            <img id="player-sprite" src="images/character.png">
+            <img id="asteroid-sprite" src="images/Ball.png">
+        </a-assets>
+
+        <a-image id="player" 
+                 face-tracking
+                 src="#player-sprite"
+                 width="0.1" height="0.1"
+                 position="0 0 -3"
+                 material="transparent: true; opacity: 0.9"
+                 look-at="[camera]">
+        </a-image>
+        
+        <a-entity id="asteroids-container"></a-entity>
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <script src="game.js"></script>
+
+    <!-- 게임 오버 화면 -->
+    <div id="game-over-screen" style="display: none;">
+        <div class="game-over-container">
+            <h2>GAME OVER</h2>
+            <div id="final-score"></div>
+            <div id="final-stage"></div>
+            
+            <div class="high-scores">
+                <h3>최고 점수</h3>
+                <div class="score-header">
+                    <span>순위</span>
+                    <span>닉네임</span>
+                    <span>점수</span>
+                    <span>스테이지</span>
+                    <span>날짜</span>
+                </div>
+                <div id="score-list"></div>
+            </div>
+            
+            <button id="restart-btn">다시 시작</button>
+        </div>
+    </div>
+</body>
+</html>

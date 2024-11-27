@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>게임 결과</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="scores-container">
+        <h1>GAME OVER</h1>
+        <div id="final-score"></div>
+        <div id="final-stage"></div>
+        
+        <div class="high-scores">
+            <h2>최고 점수</h2>
+            <div class="score-header">
+                <span>순위</span>
+                <span>닉네임</span>
+                <span>점수</span>
+                <span>스테이지</span>
+                <span>날짜</span>
+            </div>
+            <div id="score-list"></div>
+        </div>
+        
+        <button id="restart-btn">다시 시작</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // URL 파라미터에서 현재 게임 정보 가져오기
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentScore = parseInt(urlParams.get('score') || '0');
+            const currentStage = parseInt(urlParams.get('stage') || '1');
+            const currentNickname = urlParams.get('nickname') || '무명';
+
+            // 최종 점수 표시
+            document.getElementById('final-score').textContent = `최종 점수: ${currentScore}`;
+            document.getElementById('final-stage').textContent = `도달 스테이지: ${currentStage}`;
+
+            // 기존 점수 기록 가져오기
+            let highScores = JSON.parse(localStorage.getItem('highScores') || '[]');
+
+            // 새로운 점수 추가
+            highScores.push({
+                nickname: currentNickname,
+                score: currentScore,
+                stage: currentStage,
+                date: new Date().toLocaleDateString()
+            });
+
+            // 점수 내림차순 정렬
+            highScores.sort((a, b) => b.score - a.score);
+
+            // 상위 10개만 유지
+            highScores = highScores.slice(0, 10);
+
+            // 점수 저장
+            localStorage.setItem('highScores', JSON.stringify(highScores));
+
+            // 점수 목록 표시
+            const scoreList = document.getElementById('score-list');
+            scoreList.innerHTML = highScores.map((score, index) => `
+                <div class="score-item ${score.nickname === currentNickname && score.score === currentScore ? 'current-score' : ''}">
+                    <span class="rank">${index + 1}</span>
+                    <span class="nickname">${score.nickname}</span>
+                    <span class="score">${score.score}</span>
+                    <span class="stage">Stage ${score.stage}</span>
+                    <span class="date">${score.date}</span>
+                </div>
+            `).join('');
+
+            // 재시작 버튼
+            document.getElementById('restart-btn').onclick = () => {
+                window.location.href = 'index.html';
+            };
+        });
+    </script>
+</head>
+</body>
+</html> 
